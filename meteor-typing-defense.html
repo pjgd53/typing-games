@@ -1,0 +1,746 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no">
+<title>Meteor Defense — Typing Game</title>
+<style>
+  :root {
+    /* Light theme (daytime sky) — the default. */
+    --bg1: #bfe3ff;
+    --bg2: #eaf6ff;
+    --panel: #ffffff;
+    --panel-line: #d7e3f5;
+    --ink: #1e293b;
+    --muted: #5b6b85;
+    --accent: #0284c7;
+    --accent-glow: rgba(2,132,199,0.30);
+    --good: #15803d;
+    --bad: #dc2626;
+    --meteor1: #f97316;
+    --meteor2: #ef4444;
+    --label-bg: rgba(255,255,255,0.92);
+    --label-border: rgba(15,23,42,0.15);
+    --overlay-bg: rgba(255,255,255,0.94);
+    --input-bg: #ffffff;
+    --shadow: rgba(15,23,42,0.18);
+    --playfield-bg: linear-gradient(180deg, #8ec9f2 0%, #bfe3ff 55%, #eaf6ff 100%);
+    --base-zone-bg: linear-gradient(180deg, transparent, rgba(2,132,199,0.12));
+    --base-zone-border: rgba(2,132,199,0.35);
+    --sky-decoration: radial-gradient(140px 140px at 85% 10%, rgba(255,241,168,0.85) 0%, rgba(255,241,168,0) 70%);
+  }
+  /* Follow system preference when the visitor hasn't picked explicitly;
+     an explicit choice via the toggle (the block below) always wins. */
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg1: #0b1026;
+      --bg2: #020308;
+      --panel: #12172e;
+      --panel-line: #2a3260;
+      --ink: #e7ecff;
+      --muted: #8b93c4;
+      --accent: #6ee7ff;
+      --accent-glow: rgba(110,231,255,0.35);
+      --good: #4ade80;
+      --bad: #f87171;
+      --meteor1: #ff8a3d;
+      --meteor2: #ff5c5c;
+      --label-bg: rgba(10,12,30,0.85);
+      --label-border: rgba(255,255,255,0.12);
+      --overlay-bg: rgba(5,7,20,0.92);
+      --input-bg: #0a0e24;
+      --shadow: rgba(0,0,0,0.5);
+      --playfield-bg: linear-gradient(180deg, #0d1230 0%, #0a0e24 70%, #171129 100%);
+      --base-zone-bg: linear-gradient(180deg, transparent, rgba(110,231,255,0.12));
+      --base-zone-border: rgba(110,231,255,0.35);
+      --sky-decoration:
+        radial-gradient(1px 1px at 10% 20%, #ffffff55 0, transparent 60%),
+        radial-gradient(1px 1px at 80% 10%, #ffffff44 0, transparent 60%),
+        radial-gradient(1.5px 1.5px at 60% 70%, #ffffff55 0, transparent 60%),
+        radial-gradient(1px 1px at 30% 85%, #ffffff33 0, transparent 60%),
+        radial-gradient(1px 1px at 90% 60%, #ffffff44 0, transparent 60%),
+        radial-gradient(1px 1px at 45% 40%, #ffffff33 0, transparent 60%);
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg1: #0b1026;
+    --bg2: #020308;
+    --panel: #12172e;
+    --panel-line: #2a3260;
+    --ink: #e7ecff;
+    --muted: #8b93c4;
+    --accent: #6ee7ff;
+    --accent-glow: rgba(110,231,255,0.35);
+    --good: #4ade80;
+    --bad: #f87171;
+    --meteor1: #ff8a3d;
+    --meteor2: #ff5c5c;
+    --label-bg: rgba(10,12,30,0.85);
+    --label-border: rgba(255,255,255,0.12);
+    --overlay-bg: rgba(5,7,20,0.92);
+    --input-bg: #0a0e24;
+    --shadow: rgba(0,0,0,0.5);
+    --playfield-bg: linear-gradient(180deg, #0d1230 0%, #0a0e24 70%, #171129 100%);
+    --base-zone-bg: linear-gradient(180deg, transparent, rgba(110,231,255,0.12));
+    --base-zone-border: rgba(110,231,255,0.35);
+    --sky-decoration:
+      radial-gradient(1px 1px at 10% 20%, #ffffff55 0, transparent 60%),
+      radial-gradient(1px 1px at 80% 10%, #ffffff44 0, transparent 60%),
+      radial-gradient(1.5px 1.5px at 60% 70%, #ffffff55 0, transparent 60%),
+      radial-gradient(1px 1px at 30% 85%, #ffffff33 0, transparent 60%),
+      radial-gradient(1px 1px at 90% 60%, #ffffff44 0, transparent 60%),
+      radial-gradient(1px 1px at 45% 40%, #ffffff33 0, transparent 60%);
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  /* html gets a fixed viewport height, but body must NOT — a fixed height
+     combined with flex centering pushes overflow content half above the
+     top of the page (unreachable, since scroll position can't go
+     negative) when content is taller than the screen, as it often is on
+     mobile with the how-to-play panel stacked below the game. min-height
+     alone lets body grow to fit its content instead. */
+  html { height: 100%; }
+  body { margin: 0; overscroll-behavior: none; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: var(--sky-decoration), linear-gradient(180deg, var(--bg1), var(--bg2));
+    min-height: 100dvh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 14px;
+    color: var(--ink);
+    transition: background 0.2s, color 0.2s;
+  }
+  .theme-toggle {
+    position: fixed;
+    top: 14px;
+    right: 14px;
+    width: 42px;
+    height: 42px;
+    border-radius: 50%;
+    background: var(--panel);
+    border: 1px solid var(--panel-line);
+    box-shadow: 0 4px 14px var(--shadow);
+    font-size: 19px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    z-index: 20;
+    padding: 0;
+    transition: background 0.2s, transform 0.08s;
+  }
+  .theme-toggle:active { transform: scale(0.92); }
+  /* Mobile-first: phones and portrait tablets get a single stacked column
+     (game on top, how-to-play below). Row layout only kicks in explicitly
+     at the tablet-landscape/desktop breakpoint below — not left to organic
+     flex-wrap, which can flip unpredictably right around common tablet
+     widths depending on sub-pixel content sizing. */
+  .layout {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+    width: 100%;
+    max-width: 920px;
+  }
+  .wrap { width: 100%; max-width: 560px; }
+
+  .howto {
+    width: 100%;
+    max-width: 560px;
+    background: var(--panel);
+    border: 1px solid var(--panel-line);
+    border-radius: 16px;
+    padding: 18px 20px;
+    transition: background 0.2s, border-color 0.2s;
+  }
+
+  @media (min-width: 820px) {
+    .layout { flex-direction: row; align-items: flex-start; justify-content: center; gap: 18px; }
+    .wrap { flex: 1 1 360px; }
+    .howto { flex: 1 1 260px; max-width: 320px; }
+  }
+  .howto h2 {
+    margin: 0 0 12px;
+    font-size: 16px;
+    letter-spacing: 0.02em;
+  }
+  .howto ul {
+    margin: 0;
+    padding-left: 18px;
+    color: var(--muted);
+    font-size: 13.5px;
+    line-height: 1.65;
+  }
+  .howto li { margin-bottom: 8px; }
+  .howto li:last-child { margin-bottom: 0; }
+  .howto li b { color: var(--ink); }
+
+  .hud {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 4px 6px 10px;
+    font-size: 15px;
+    font-weight: 700;
+  }
+  .hud .score { color: var(--accent); }
+  .hud .lives { letter-spacing: 2px; font-size: 16px; }
+
+  .field-wrap {
+    position: relative;
+    border-radius: 18px;
+    overflow: hidden;
+    box-shadow: 0 20px 60px var(--shadow);
+    border: 1px solid var(--panel-line);
+    transition: box-shadow 0.2s;
+  }
+
+  .playfield {
+    position: relative;
+    height: clamp(300px, 55vh, 480px);
+    background: var(--playfield-bg);
+    overflow: hidden;
+    transition: background 0.2s;
+  }
+
+  /* Tablet portrait and up: more vertical room to work with. */
+  @media (min-width: 600px) {
+    .playfield { height: clamp(380px, 58vh, 560px); }
+    .hud { font-size: 16px; }
+  }
+  /* Desktop / tablet landscape: bigger arena, side-by-side layout already
+     kicks in via .layout's flex-wrap around this width. */
+  @media (min-width: 1024px) {
+    .playfield { height: clamp(420px, 60vh, 620px); }
+  }
+  /* Short/landscape phones: vh-based sizing alone would overflow a screen
+     that's only ~375-420px tall, hiding the HUD and input row. Shrink the
+     arena so everything stays on screen without scrolling. */
+  @media (max-height: 480px) and (orientation: landscape) {
+    .playfield { height: clamp(190px, 62vh, 320px); }
+    .hud { padding: 2px 6px 6px; font-size: 13px; }
+    body { padding: 8px; }
+  }
+  /* Small phones: tighten padding so nothing feels cramped. */
+  @media (max-width: 360px) {
+    body { padding: 10px; }
+    .hud { font-size: 13px; }
+  }
+  .playfield.hitflash { animation: hitflash 0.25s ease; }
+  @keyframes hitflash {
+    0% { background-color: rgba(248,113,113,0.55); }
+    100% { background-color: transparent; }
+  }
+
+  .base-zone {
+    position: absolute;
+    left: 0; right: 0; bottom: 0;
+    height: 48px;
+    background: var(--base-zone-bg);
+    border-top: 2px dashed var(--base-zone-border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 22px;
+    transition: background 0.2s, border-color 0.2s;
+  }
+
+  .meteor {
+    position: absolute;
+    top: 0;
+    left: 0;
+    transform: translate(-50%, 0);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    transition: filter 0.15s;
+  }
+  .meteor .rock {
+    font-size: clamp(18px, 4.5vw, 24px);
+    filter: drop-shadow(0 0 6px rgba(255,138,61,0.7));
+  }
+  .meteor .label {
+    font-family: "SF Mono", "Menlo", "Consolas", monospace;
+    font-size: clamp(13px, 3.6vw, 16px);
+    font-weight: 700;
+    background: var(--label-bg);
+    border: 1px solid var(--label-border);
+    padding: 3px 8px;
+    border-radius: 8px;
+    white-space: nowrap;
+    color: var(--muted);
+    transition: background 0.2s, border-color 0.2s;
+  }
+  .meteor.targeted .label { border-color: var(--accent); box-shadow: 0 0 10px var(--accent-glow); }
+  .meteor .label .hit { color: var(--accent); }
+  .meteor.exploding { animation: explode 0.28s ease forwards; }
+  @keyframes explode {
+    to { transform: translate(-50%, var(--exY, 0px)) scale(1.7); opacity: 0; }
+  }
+  .meteor.impacted { animation: impact 0.25s ease forwards; }
+  @keyframes impact {
+    to { opacity: 0; transform: translate(-50%, var(--exY, 0px)) scale(0.6); }
+  }
+
+  .popup {
+    position: absolute;
+    font-weight: 800;
+    font-size: 14px;
+    color: var(--good);
+    pointer-events: none;
+    animation: popup 0.7s ease forwards;
+    transform: translate(-50%, 0);
+  }
+  @keyframes popup {
+    0% { opacity: 1; transform: translate(-50%, 0); }
+    100% { opacity: 0; transform: translate(-50%, -30px); }
+  }
+
+  .input-row {
+    padding: 12px;
+    background: var(--panel);
+    transition: background 0.2s;
+  }
+  input#wordInput {
+    width: 100%;
+    padding: 13px 14px;
+    font-size: 16px;
+    border-radius: 12px;
+    border: 2px solid var(--panel-line);
+    outline: none;
+    background: var(--input-bg);
+    color: var(--ink);
+    font-family: "SF Mono", "Menlo", "Consolas", monospace;
+    transition: border-color 0.15s, background 0.2s, color 0.2s;
+    -webkit-appearance: none;
+  }
+  input#wordInput:focus { border-color: var(--accent); }
+  input#wordInput.miss { border-color: var(--bad); }
+
+  .warning {
+    min-height: 15px;
+    text-align: center;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--bad);
+    padding-bottom: 10px;
+    background: var(--panel);
+    opacity: 0;
+    transition: opacity 0.2s, background 0.2s;
+  }
+  .warning.show { opacity: 1; }
+
+  .overlay {
+    position: absolute;
+    inset: 0;
+    background: var(--overlay-bg);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 24px;
+    gap: 12px;
+    z-index: 5;
+  }
+  .overlay h1 { font-size: clamp(20px, 5.5vw, 26px); margin: 0; }
+  .overlay h2 { font-size: clamp(20px, 5.5vw, 26px); margin: 0; color: var(--bad); }
+  .overlay p { color: var(--muted); font-size: 14px; margin: 0; max-width: 320px; line-height: 1.5; }
+  .overlay .bigscore { font-size: 34px; font-weight: 800; color: var(--accent); }
+  .overlay button {
+    margin-top: 6px;
+    padding: 13px 28px;
+    font-size: 15px;
+    font-weight: 700;
+    border: none;
+    border-radius: 12px;
+    background: linear-gradient(135deg, var(--accent), #7c8bff);
+    color: #05070f;
+    cursor: pointer;
+  }
+  .overlay button:active { transform: scale(0.96); }
+</style>
+</head>
+<body>
+<button class="theme-toggle" id="themeToggle" type="button" aria-label="Toggle dark mode">🌙</button>
+<div class="layout">
+  <div class="wrap">
+    <div class="hud">
+      <div class="score">Score: <span id="score">0</span></div>
+      <div class="lives" id="lives"></div>
+    </div>
+
+    <div class="field-wrap">
+      <div class="playfield" id="playfield">
+        <div class="base-zone">🏰</div>
+      </div>
+
+      <div class="input-row">
+        <input
+          id="wordInput"
+          type="text"
+          autocomplete="off"
+          autocorrect="off"
+          autocapitalize="off"
+          spellcheck="false"
+          inputmode="text"
+          placeholder="Type the falling word…"
+          disabled
+        />
+      </div>
+      <div class="warning" id="warningMsg"></div>
+
+      <div class="overlay" id="startOverlay">
+        <h1>☄️ Meteor Defense</h1>
+        <p>Words fall toward your base. Type one exactly and it blasts automatically — no need to hit Enter.</p>
+        <button id="startBtn">Start Game</button>
+      </div>
+
+      <div class="overlay" id="gameOverOverlay" style="display:none">
+        <h2>💥 Base Destroyed</h2>
+        <div class="bigscore" id="finalScore">0</div>
+        <p>Nice defending! Try to beat your score.</p>
+        <button id="restartBtn">Play Again</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="howto">
+    <h2>🛈 How to Play</h2>
+    <ul>
+      <li>Meteors fall from the top, each carrying a <b>word</b>.</li>
+      <li>Type it exactly and it <b>fires automatically</b> — no Enter needed.</li>
+      <li>Matching letters glow blue as you type — that's your locked-on target.</li>
+      <li>A meteor that reaches the dashed line hits your <b>castle</b> and costs a life.</li>
+      <li>You start with <b>3 lives</b> — lose them all and it's game over.</li>
+      <li>Longer words score more points, but the sky gets faster and busier as your score climbs.</li>
+      <li>A wrong guess just flashes red — no penalty, try again.</li>
+    </ul>
+  </div>
+</div>
+<script>
+(function () {
+  // Word bank capped at 3-7 letters for grade 4-6 students new to typing —
+  // tier 1 (3-4 letters) for warm-up, tier 2 (5-7 letters) unlocked as the
+  // player scores points. Nothing longer ever appears.
+  const WORDS = {
+    1: ['cat','dog','sun','sky','run','jump','play','frog','bird','fish','star','moon','rain','snow','wind','tree','leaf','rose','fire','rock','code','book','lamp','door','ship','bee','ant','owl','fox','bat','cow','pig','hen','elk','eel','cod','ape','jay','boy','kid','mom','dad','son','gym','art','map','hat','cap','bag','box','cup','pen','key','egg','ice','jam','pie','tea','oil','gas','air','sea','bay','hut','tin','web','log','mud','mat','rug','jar','van','bus','car','cab','jet','gun','bow','axe','saw','net','rod','kit','toy','gem','ore','ash','dew','fog','zoo','cry','fly','sit','hop','win','dig','dip','mix','fix','wax'],
+    2: ['comet','rocket','planet','meteor','laser','shield','castle','dragon','wizard','knight','sword','armor','magic','spell','quest','forest','desert','island','ocean','river','storm','cloud','thunder','rainbow','sunset','gravity','warrior','volcano','tornado','monkey','rabbit','turtle','spider','beetle','tiger','zebra','camel','otter','beaver','falcon','parrot','pigeon','walrus','dolphin','shark','whale','panda','koala','gecko','lizard','python','cobra','possum','badger','ferret','weasel','jackal','coyote','panther','cheetah','flower','garden','jungle','meadow','valley','canyon','harbor','bridge','tunnel','tower','palace','temple','cottage','cabin','villa','fence','ladder','window','pillow','blanket','carpet','mirror','candle','basket','bucket','hammer','wrench','pencil','crayon','marker','eraser','folder','ticket','wallet','purse','helmet','jacket','sweater','sandal','sneaker']
+  };
+
+  const playfield = document.getElementById('playfield');
+  const scoreEl = document.getElementById('score');
+  const livesEl = document.getElementById('lives');
+  const input = document.getElementById('wordInput');
+  const startOverlay = document.getElementById('startOverlay');
+  const startBtn = document.getElementById('startBtn');
+  const gameOverOverlay = document.getElementById('gameOverOverlay');
+  const finalScoreEl = document.getElementById('finalScore');
+  const restartBtn = document.getElementById('restartBtn');
+  const warningMsg = document.getElementById('warningMsg');
+
+  const MAX_LIVES = 3;
+  const MAX_METEORS = 6;
+
+  let score = 0;
+  let lives = MAX_LIVES;
+  let meteors = [];
+  let running = false;
+  let rafId = null;
+  let lastFrameTime = 0;
+  let spawnTimerId = null;
+  let meteorSeq = 0;
+  let lastValue = '';
+  let lastAcceptedTime = 0;
+  let warnTimer = null;
+
+  function showWarning(text) {
+    warningMsg.textContent = text;
+    warningMsg.classList.add('show');
+    clearTimeout(warnTimer);
+    warnTimer = setTimeout(() => warningMsg.classList.remove('show'), 1800);
+  }
+
+  // Reject non-keystroke insertions: predictive/autofill word taps and
+  // dictated (speech-to-text) words both tend to drop a whole word into the
+  // field in one go, and dictation in particular has no distinct "this was
+  // spoken" signal browsers expose — from the DOM's point of view it looks
+  // like ordinary typed text. What both share is that they land as a
+  // multi-character jump (or, occasionally, a single character arriving
+  // implausibly fast right after the last one) rather than the steady
+  // one-character-per-event rhythm of a real keystroke, so that's what gets
+  // checked and reverted here.
+  function isBulkInsert(e, rawValue) {
+    const now = Date.now();
+    const gapMs = lastAcceptedTime ? now - lastAcceptedTime : Infinity;
+    const delta = rawValue.length - lastValue.length;
+    const suspiciousType = e.inputType && /replacement|dictation|transliteration|autocomplete/i.test(e.inputType);
+    const suspiciouslyFast = delta === 1 && gapMs < 15;
+    return delta > 1 || suspiciousType || suspiciouslyFast;
+  }
+
+  function renderLives() {
+    livesEl.textContent = '❤️'.repeat(Math.max(lives, 0)) + '🖤'.repeat(MAX_LIVES - Math.max(lives, 0));
+  }
+
+  // Score needed to unlock the tier-2 (5-7 letter) word pool.
+  const TIER2_UNLOCK_SCORE = 2000;
+
+  // Track every word already spawned this game so none of them repeat —
+  // this persists across the whole session (not per-bag), so a word used
+  // early under the tier-1-only pool stays "used up" even after tier 2
+  // unlocks. Crucially, crossing the unlock score never clears usedWords —
+  // it only widens the pool, so tier-2 words get ADDED as newly-available
+  // options rather than the tracking being reset/refreshed. Only if a
+  // session runs long enough to exhaust the entire word list (200 words)
+  // does it reset, and even then it avoids repeating the word just used.
+  let usedWords = new Set();
+  let lastWord = null;
+
+  function pickWord() {
+    const pool = score >= TIER2_UNLOCK_SCORE ? WORDS[1].concat(WORDS[2]) : WORDS[1];
+    let available = pool.filter(w => !usedWords.has(w));
+    if (available.length === 0) {
+      usedWords.clear();
+      available = pool.filter(w => w !== lastWord);
+      if (available.length === 0) available = pool.slice();
+    }
+    const word = available[Math.floor(Math.random() * available.length)];
+    usedWords.add(word);
+    lastWord = word;
+    return word;
+  }
+
+  function currentFallSpeed() {
+    // px per second, ramps up with score
+    const speed = 34 + score * 0.05;
+    return Math.min(speed, 120) * (0.85 + Math.random() * 0.3);
+  }
+
+  function currentSpawnInterval() {
+    // Coefficient chosen so this reaches its floor at roughly the same
+    // score as currentFallSpeed() reaches its cap (~1720) — speed and
+    // spawn rate ramp up together instead of one maxing out first.
+    const interval = 2200 - score * 0.84;
+    return Math.max(interval, 750);
+  }
+
+  function labelHTML(word, typedLower) {
+    if (!typedLower || !word.startsWith(typedLower)) {
+      return word.split('').map(ch => `<span>${ch}</span>`).join('');
+    }
+    return word.split('').map((ch, i) =>
+      i < typedLower.length ? `<span class="hit">${ch}</span>` : `<span>${ch}</span>`
+    ).join('');
+  }
+
+  function spawnMeteor() {
+    if (!running || meteors.length >= MAX_METEORS) return;
+    const word = pickWord();
+    const el = document.createElement('div');
+    el.className = 'meteor';
+    el.innerHTML = `<div class="rock">☄️</div><div class="label">${labelHTML(word, '')}</div>`;
+    const xPct = 12 + Math.random() * 76;
+    el.style.left = xPct + '%';
+    playfield.appendChild(el);
+
+    meteors.push({
+      id: ++meteorSeq,
+      word,
+      el,
+      y: -30,
+      speed: currentFallSpeed()
+    });
+  }
+
+  function scheduleSpawn() {
+    clearTimeout(spawnTimerId);
+    if (!running) return;
+    spawnTimerId = setTimeout(() => {
+      spawnMeteor();
+      scheduleSpawn();
+    }, currentSpawnInterval());
+  }
+
+  function spawnPopup(text, xPct, yPx, color) {
+    const p = document.createElement('div');
+    p.className = 'popup';
+    p.textContent = text;
+    p.style.left = xPct + '%';
+    p.style.top = yPx + 'px';
+    if (color) p.style.color = color;
+    playfield.appendChild(p);
+    setTimeout(() => p.remove(), 720);
+  }
+
+  function destroyMeteor(meteor, hit) {
+    meteors = meteors.filter(m => m.id !== meteor.id);
+    const xPct = parseFloat(meteor.el.style.left);
+    if (hit) {
+      meteor.el.style.setProperty('--exY', meteor.y + 'px');
+      meteor.el.classList.add('exploding');
+      spawnPopup('+' + (meteor.word.length * 10), xPct, meteor.y, '#4ade80');
+    } else {
+      meteor.el.style.setProperty('--exY', meteor.y + 'px');
+      meteor.el.classList.add('impacted');
+    }
+    setTimeout(() => meteor.el.remove(), 300);
+  }
+
+  function loseLife() {
+    lives--;
+    renderLives();
+    playfield.classList.remove('hitflash');
+    void playfield.offsetWidth;
+    playfield.classList.add('hitflash');
+    if (lives <= 0) endGame();
+  }
+
+  function tick(now) {
+    if (!running) return;
+    const dt = lastFrameTime ? (now - lastFrameTime) / 1000 : 0;
+    lastFrameTime = now;
+
+    const baseLine = playfield.clientHeight - 46;
+    const typedLower = input.value.trim().toLowerCase();
+
+    meteors.forEach(m => {
+      m.y += m.speed * dt;
+      m.el.style.transform = `translate(-50%, ${m.y}px)`;
+      const isTarget = typedLower.length > 0 && m.word.startsWith(typedLower);
+      m.el.classList.toggle('targeted', isTarget);
+    });
+
+    const fallen = meteors.filter(m => m.y >= baseLine);
+    fallen.forEach(m => {
+      destroyMeteor(m, false);
+      loseLife();
+    });
+
+    rafId = requestAnimationFrame(tick);
+  }
+
+  function refreshLabels() {
+    const typedLower = input.value.trim().toLowerCase();
+    meteors.forEach(m => {
+      const label = m.el.querySelector('.label');
+      label.innerHTML = labelHTML(m.word, typedLower);
+    });
+  }
+
+  function handleInput(e) {
+    const raw = input.value;
+    if (isBulkInsert(e, raw)) {
+      input.value = lastValue;
+      showWarning('Please type each letter — no autofill, suggestions, or dictation.');
+      return;
+    }
+    lastAcceptedTime = Date.now();
+    lastValue = input.value;
+
+    const typed = input.value.trim().toLowerCase();
+
+    if (typed && running) {
+      // Auto-fire the moment what's typed exactly matches a falling word —
+      // no Enter needed. Destroy every meteor showing that word, since
+      // duplicates are all highlighted as targets together.
+      const matches = meteors.filter(m => m.word === typed);
+      if (matches.length > 0) {
+        matches.forEach(m => {
+          score += m.word.length * 10;
+          destroyMeteor(m, true);
+        });
+        scoreEl.textContent = score;
+        input.value = '';
+        lastValue = '';
+        input.classList.remove('miss');
+        refreshLabels();
+        return;
+      }
+    }
+
+    // No live meteor's word starts with what's typed — nothing to aim at.
+    input.classList.toggle('miss', typed.length > 0 && !meteors.some(m => m.word.startsWith(typed)));
+    refreshLabels();
+  }
+
+  function startGame() {
+    score = 0;
+    lives = MAX_LIVES;
+    meteors.forEach(m => m.el.remove());
+    meteors = [];
+    usedWords.clear();
+    lastWord = null;
+    scoreEl.textContent = '0';
+    renderLives();
+    startOverlay.style.display = 'none';
+    gameOverOverlay.style.display = 'none';
+    input.disabled = false;
+    input.value = '';
+    lastValue = '';
+    lastAcceptedTime = 0;
+    warningMsg.classList.remove('show');
+    running = true;
+    lastFrameTime = 0;
+    rafId = requestAnimationFrame(tick);
+    scheduleSpawn();
+    input.focus();
+  }
+
+  function endGame() {
+    running = false;
+    cancelAnimationFrame(rafId);
+    clearTimeout(spawnTimerId);
+    input.disabled = true;
+    finalScoreEl.textContent = score;
+    gameOverOverlay.style.display = 'flex';
+  }
+
+  input.addEventListener('input', handleInput);
+  input.addEventListener('paste', (e) => e.preventDefault());
+  startBtn.addEventListener('click', startGame);
+  restartBtn.addEventListener('click', startGame);
+  playfield.addEventListener('click', () => { if (running) input.focus(); });
+
+  // --- Light / dark theme toggle ---
+  const THEME_KEY = 'meteorGameTheme';
+  const root = document.documentElement;
+  const themeToggle = document.getElementById('themeToggle');
+
+  function effectiveTheme() {
+    const explicit = root.getAttribute('data-theme');
+    if (explicit) return explicit;
+    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  }
+
+  function refreshToggleIcon() {
+    const dark = effectiveTheme() === 'dark';
+    themeToggle.textContent = dark ? '☀️' : '🌙';
+    themeToggle.setAttribute('aria-label', dark ? 'Switch to light mode' : 'Switch to dark mode');
+  }
+
+  function setTheme(theme) {
+    root.setAttribute('data-theme', theme);
+    refreshToggleIcon();
+    try { localStorage.setItem(THEME_KEY, theme); } catch (err) { /* ignore */ }
+  }
+
+  (function initTheme() {
+    let saved = null;
+    try { saved = localStorage.getItem(THEME_KEY); } catch (err) { /* ignore */ }
+    if (saved === 'light' || saved === 'dark') root.setAttribute('data-theme', saved);
+    refreshToggleIcon();
+  })();
+
+  themeToggle.addEventListener('click', () => {
+    setTheme(effectiveTheme() === 'dark' ? 'light' : 'dark');
+  });
+
+  renderLives();
+})();
+</script>
+</body>
+</html>

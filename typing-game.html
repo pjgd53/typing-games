@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no">
+<title>Quick Brown Fox — Typing Game</title>
+<style>
+  :root {
+    --bg1: #eef2ff;
+    --bg2: #f8fafc;
+    --card: #ffffff;
+    --card-border: rgba(15,23,42,0.06);
+    --ink: #1e293b;
+    --muted: #64748b;
+    --accent: #6366f1;
+    --good: #16a34a;
+    --bad: #dc2626;
+    --pending: #cbd5e1;
+    --stat-bg: #f1f5f9;
+    --target-bg: #f8fafc;
+    --input-bg: #ffffff;
+    --input-border: #e2e8f0;
+    --char-wrong-bg: #fee2e2;
+    --char-current-bg: #e0e7ff;
+    --btn-secondary-bg: #e2e8f0;
+    --btn-secondary-ink: #1e293b;
+    --shadow: rgba(15,23,42,0.15);
+  }
+  /* Follow system preference when the visitor hasn't picked explicitly. */
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg1: #1e1b4b;
+      --bg2: #0f172a;
+      --card: #1a2036;
+      --card-border: rgba(255,255,255,0.08);
+      --ink: #e7ecff;
+      --muted: #94a3b8;
+      --accent: #818cf8;
+      --good: #4ade80;
+      --bad: #f87171;
+      --pending: #475569;
+      --stat-bg: #131a30;
+      --target-bg: #11162a;
+      --input-bg: #11162a;
+      --input-border: #334155;
+      --char-wrong-bg: rgba(248,113,113,0.18);
+      --char-current-bg: rgba(129,140,248,0.22);
+      --btn-secondary-bg: #2a3252;
+      --btn-secondary-ink: #e7ecff;
+      --shadow: rgba(0,0,0,0.5);
+    }
+  }
+  /* Explicit choice (via the toggle) always wins over system preference. */
+  :root[data-theme="dark"] {
+    --bg1: #1e1b4b;
+    --bg2: #0f172a;
+    --card: #1a2036;
+    --card-border: rgba(255,255,255,0.08);
+    --ink: #e7ecff;
+    --muted: #94a3b8;
+    --accent: #818cf8;
+    --good: #4ade80;
+    --bad: #f87171;
+    --pending: #475569;
+    --stat-bg: #131a30;
+    --target-bg: #11162a;
+    --input-bg: #11162a;
+    --input-border: #334155;
+    --char-wrong-bg: rgba(248,113,113,0.18);
+    --char-current-bg: rgba(129,140,248,0.22);
+    --btn-secondary-bg: #2a3252;
+    --btn-secondary-ink: #e7ecff;
+    --shadow: rgba(0,0,0,0.5);
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  /* body deliberately has no fixed height — only html does. A fixed height
+     combined with flex centering would push overflow content half above
+     the reachable top of the page on short screens; min-height alone lets
+     body grow to fit content instead. */
+  html { height: 100%; }
+  body {
+    margin: 0;
+    overscroll-behavior: none;
+  }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: radial-gradient(circle at top, var(--bg1), var(--bg2));
+    min-height: 100dvh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+    transition: background 0.2s;
+  }
+  .theme-toggle {
+    position: fixed;
+    top: 14px;
+    right: 14px;
+    width: 42px;
+    height: 42px;
+    border-radius: 50%;
+    background: var(--card);
+    border: 1px solid var(--card-border);
+    box-shadow: 0 4px 14px var(--shadow);
+    font-size: 19px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    z-index: 20;
+    padding: 0;
+    transition: background 0.2s, transform 0.08s;
+  }
+  .theme-toggle:active { transform: scale(0.92); }
+  .wrap {
+    width: 100%;
+    max-width: 640px;
+  }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--card-border);
+    border-radius: 20px;
+    padding: 24px 20px;
+    box-shadow: 0 20px 60px var(--shadow);
+    transition: background 0.2s, border-color 0.2s;
+  }
+  h1 {
+    margin: 0 0 4px;
+    font-size: clamp(20px, 5vw, 28px);
+    color: var(--ink);
+    text-align: center;
+  }
+  .subtitle {
+    text-align: center;
+    color: var(--muted);
+    font-size: 14px;
+    margin-bottom: 20px;
+  }
+  .stats {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 18px;
+  }
+  .stat {
+    background: var(--stat-bg);
+    border-radius: 12px;
+    padding: 10px 28px;
+    text-align: center;
+    transition: background 0.2s;
+  }
+  .stat .label {
+    font-size: 11px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  .stat .value {
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--ink);
+    font-variant-numeric: tabular-nums;
+  }
+  .target {
+    font-size: clamp(20px, 6vw, 30px);
+    line-height: 1.5;
+    letter-spacing: 0.5px;
+    background: var(--target-bg);
+    border-radius: 14px;
+    padding: 18px 16px;
+    margin-bottom: 16px;
+    word-wrap: break-word;
+    user-select: none;
+    font-family: "SF Mono", "Menlo", "Consolas", monospace;
+    min-height: 3.2em;
+    transition: background 0.2s;
+  }
+  .target span { transition: color 0.1s, background-color 0.1s; border-radius: 3px; }
+  .char-pending { color: var(--pending); }
+  .char-correct { color: var(--good); }
+  .char-wrong { color: var(--bad); background-color: var(--char-wrong-bg); }
+  .char-current { color: var(--ink); background-color: var(--char-current-bg); border-bottom: 2px solid var(--accent); }
+
+  input#typeInput {
+    width: 100%;
+    padding: 16px;
+    font-size: 18px;
+    border-radius: 12px;
+    border: 2px solid var(--input-border);
+    outline: none;
+    font-family: inherit;
+    background: var(--input-bg);
+    color: var(--ink);
+    transition: border-color 0.15s, background 0.2s, color 0.2s;
+    -webkit-appearance: none;
+  }
+  input#typeInput:focus { border-color: var(--accent); }
+  input#typeInput.error { border-color: var(--bad); }
+
+  .warning {
+    min-height: 16px;
+    text-align: center;
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--bad);
+    margin-top: 6px;
+    opacity: 0;
+    transition: opacity 0.2s;
+  }
+  .warning.show { opacity: 1; }
+
+  .buttons {
+    display: flex;
+    gap: 10px;
+    margin-top: 16px;
+  }
+  button {
+    flex: 1;
+    padding: 14px;
+    font-size: 15px;
+    font-weight: 600;
+    border: none;
+    border-radius: 12px;
+    cursor: pointer;
+    background: var(--accent);
+    color: white;
+    transition: transform 0.08s, opacity 0.15s;
+  }
+  button:active { transform: scale(0.97); }
+  button.secondary {
+    background: var(--btn-secondary-bg);
+    color: var(--btn-secondary-ink);
+    transition: background 0.2s, color 0.2s;
+  }
+
+  .result {
+    display: none;
+    text-align: center;
+    margin-top: 6px;
+    padding: 16px;
+    border-radius: 14px;
+    background: linear-gradient(135deg, #6366f1, #8b5cf6);
+    color: white;
+  }
+  .result.show { display: block; }
+  .result .big { font-size: 32px; font-weight: 800; margin-bottom: 2px; }
+  .result .small { font-size: 13px; opacity: 0.9; }
+
+  @media (max-width: 380px) {
+    .card { padding: 18px 14px; }
+  }
+</style>
+</head>
+<body>
+<button class="theme-toggle" id="themeToggle" type="button" aria-label="Toggle dark mode">🌙</button>
+<div class="wrap">
+  <div class="card">
+    <h1>Typing Activity</h1>
+    <div class="subtitle">Type the sentence as fast as you can</div>
+
+    <div class="stats">
+      <div class="stat">
+        <div class="label">Time</div>
+        <div class="value" id="statTime">0.0s</div>
+      </div>
+    </div>
+
+    <div class="target" id="target" aria-live="off"></div>
+
+    <input
+      id="typeInput"
+      type="text"
+      autocomplete="off"
+      autocorrect="off"
+      autocapitalize="off"
+      spellcheck="false"
+      inputmode="text"
+      placeholder="Tap here and start typing…"
+    />
+    <div class="warning" id="warningMsg"></div>
+
+    <div class="buttons">
+      <button id="restartBtn" class="secondary">Restart</button>
+      <button id="focusBtn">Start Typing</button>
+    </div>
+
+    <div class="result" id="result">
+      <div class="big" id="resultBig">🎉 Nice!</div>
+      <div class="small" id="resultSmall"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  const SENTENCE = "the quick brown fox jumps over the lazy dog";
+
+  const targetEl = document.getElementById('target');
+  const inputEl = document.getElementById('typeInput');
+  const statTime = document.getElementById('statTime');
+  const restartBtn = document.getElementById('restartBtn');
+  const focusBtn = document.getElementById('focusBtn');
+  const resultEl = document.getElementById('result');
+  const resultBig = document.getElementById('resultBig');
+  const resultSmall = document.getElementById('resultSmall');
+
+  let startTime = null;
+  let finished = false;
+  let timerHandle = null;
+  let prevLen = 0;
+  let lastValue = '';
+  let lastAcceptedTime = 0;
+  let warnTimer = null;
+  const warningMsg = document.getElementById('warningMsg');
+
+  function showWarning(text) {
+    warningMsg.textContent = text;
+    warningMsg.classList.add('show');
+    clearTimeout(warnTimer);
+    warnTimer = setTimeout(() => warningMsg.classList.remove('show'), 1800);
+  }
+
+  function renderTarget(typed) {
+    let html = '';
+    for (let i = 0; i < SENTENCE.length; i++) {
+      const ch = SENTENCE[i];
+      const display = ch === ' ' ? ' ' : ch;
+      let cls = 'char-pending';
+      if (i < typed.length) {
+        cls = typed[i] === ch ? 'char-correct' : 'char-wrong';
+      } else if (i === typed.length) {
+        cls = 'char-current';
+      }
+      html += `<span class="${cls}">${display}</span>`;
+    }
+    targetEl.innerHTML = html;
+  }
+
+  function formatTime(ms) {
+    return (ms / 1000).toFixed(1) + 's';
+  }
+
+  function updateLiveStats() {
+    if (!startTime || finished) return;
+    const elapsed = Date.now() - startTime;
+    statTime.textContent = formatTime(elapsed);
+  }
+
+  function finish() {
+    finished = true;
+    clearInterval(timerHandle);
+    const elapsed = Date.now() - startTime;
+    statTime.textContent = formatTime(elapsed);
+
+    inputEl.blur();
+    inputEl.disabled = true;
+
+    let msg = "🎉 Nice work!";
+    if (elapsed < 6000) msg = "🏆 Blazing fast!";
+    else if (elapsed < 12000) msg = "⚡ Nice speed!";
+
+    resultBig.textContent = msg;
+    resultSmall.textContent = `Finished in ${formatTime(elapsed)}`;
+    resultEl.classList.add('show');
+  }
+
+  function handleInput(e) {
+    if (finished) return;
+
+    const raw = inputEl.value;
+
+    // Reject non-keystroke insertions: word-prediction taps (iOS QuickType,
+    // Gboard suggestion bar), browser autofill, or paste that slipped past
+    // the paste handler.
+    //   1) Length jump > 1 catches whole-word completions/taps — no single
+    //      keypress ever adds more than one character.
+    //   2) inputType catches the sneakier case: a suggestion that happens to
+    //      complete only the LAST letter of a word (e.g. typed "brow", tap
+    //      finishes "brown") is only 1 character, same as a real keystroke,
+    //      so length alone can't tell them apart. Browsers that label the
+    //      source event correctly report these as "insertReplacementText"
+    //      (or similar) instead of a plain "insertText" keypress, so this
+    //      catches it when the browser distinguishes it.
+    //   3) Timing: a keyboard auto-inserting a trailing space right after a
+    //      completed suggestion often fires that space as its own separate,
+    //      ordinary-looking "insertText" event — indistinguishable from a
+    //      real keystroke by type or length alone. But it lands essentially
+    //      instantly after the completion event, far faster than any human
+    //      keystroke gap, so flag single-character insertions that arrive
+    //      suspiciously fast after the previous one.
+    const now = Date.now();
+    const gapMs = lastAcceptedTime ? now - lastAcceptedTime : Infinity;
+    const delta = raw.length - lastValue.length;
+    const suspiciousType = e.inputType && /replacement|dictation|transliteration|autocomplete/i.test(e.inputType);
+    const suspiciouslyFast = delta === 1 && gapMs < 15;
+    if (delta > 1 || suspiciousType || suspiciouslyFast) {
+      inputEl.value = lastValue;
+      showWarning('Please type each letter — no autofill or word suggestions.');
+      return;
+    }
+    lastAcceptedTime = now;
+
+    if (!startTime) {
+      startTime = Date.now();
+      timerHandle = setInterval(updateLiveStats, 100);
+    }
+
+    const typed = inputEl.value;
+
+    // Flash the input red if any newly typed character (ignoring backspace/
+    // deletion) doesn't match the target — visual feedback only, no scoring.
+    if (typed.length > prevLen) {
+      let hadError = false;
+      for (let i = prevLen; i < typed.length; i++) {
+        if (i < SENTENCE.length && typed[i] !== SENTENCE[i]) hadError = true;
+      }
+      if (hadError) {
+        inputEl.classList.add('error');
+        setTimeout(() => inputEl.classList.remove('error'), 150);
+      }
+    }
+    prevLen = typed.length;
+
+    // Prevent typing past the sentence length
+    if (typed.length > SENTENCE.length) {
+      inputEl.value = typed.slice(0, SENTENCE.length);
+      prevLen = SENTENCE.length;
+    }
+
+    lastValue = inputEl.value;
+    renderTarget(lastValue);
+
+    if (lastValue === SENTENCE) {
+      finish();
+    }
+  }
+
+  function reset() {
+    finished = false;
+    startTime = null;
+    prevLen = 0;
+    lastValue = '';
+    lastAcceptedTime = 0;
+    clearInterval(timerHandle);
+    warningMsg.classList.remove('show');
+    inputEl.disabled = false;
+    inputEl.value = '';
+    statTime.textContent = '0.0s';
+    resultEl.classList.remove('show');
+    renderTarget('');
+    inputEl.focus();
+  }
+
+  inputEl.addEventListener('input', handleInput);
+  // Block paste to keep it an actual typing exercise
+  inputEl.addEventListener('paste', (e) => e.preventDefault());
+
+  restartBtn.addEventListener('click', reset);
+  focusBtn.addEventListener('click', () => inputEl.focus());
+  targetEl.addEventListener('click', () => inputEl.focus());
+
+  // --- Light / dark theme toggle ---
+  const THEME_KEY = 'typingGameTheme';
+  const root = document.documentElement;
+  const themeToggle = document.getElementById('themeToggle');
+
+  function effectiveTheme() {
+    const explicit = root.getAttribute('data-theme');
+    if (explicit) return explicit;
+    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  }
+
+  function refreshToggleIcon() {
+    const dark = effectiveTheme() === 'dark';
+    themeToggle.textContent = dark ? '☀️' : '🌙';
+    themeToggle.setAttribute('aria-label', dark ? 'Switch to light mode' : 'Switch to dark mode');
+  }
+
+  function setTheme(theme) {
+    root.setAttribute('data-theme', theme);
+    refreshToggleIcon();
+    try { localStorage.setItem(THEME_KEY, theme); } catch (err) { /* ignore */ }
+  }
+
+  (function initTheme() {
+    let saved = null;
+    try { saved = localStorage.getItem(THEME_KEY); } catch (err) { /* ignore */ }
+    if (saved === 'light' || saved === 'dark') root.setAttribute('data-theme', saved);
+    refreshToggleIcon();
+  })();
+
+  themeToggle.addEventListener('click', () => {
+    setTheme(effectiveTheme() === 'dark' ? 'light' : 'dark');
+  });
+
+  renderTarget('');
+})();
+</script>
+</body>
+</html>
